@@ -1,0 +1,470 @@
+// Starter code for Project 1
+
+
+import java.util.List;
+
+
+
+
+import java.util.LinkedList;
+import java.util.Scanner;
+import java.util.Stack;
+
+import java.io.FileNotFoundException;
+import java.io.File;
+
+/** Class to store a node of expression tree
+    For each internal node, element contains a binary operator
+    List of operators: +|*|-|/|%|^
+    Other tokens: (|)
+    Each leaf node contains an operand (long integer)
+*/
+
+public class Expression 
+{
+    public enum TokenType 
+    {  // NIL is a special token that can be used to mark bottom of stack
+    	PLUS, TIMES, MINUS, DIV, MOD, POWER, OPEN, CLOSE, NIL, NUMBER
+    }
+    
+    public static class Token {
+	TokenType token;
+	int priority; // for precedence of operator
+	Long number;  // used to store number of token = NUMBER
+	String string;
+
+	Token(TokenType op, int pri, String tok) 
+	{
+	    token = op;
+	    priority = pri;
+	    number = null;
+	    string = tok;
+	}
+
+	// Constructor for number.  To be called when other options have been exhausted.
+	Token(String tok) 
+	{
+	    token = TokenType.NUMBER;
+	    number = Long.parseLong(tok);
+	    string = tok;
+	}
+	
+	boolean isOperand() { return token == TokenType.NUMBER; }
+
+	public long getValue() {
+	    return isOperand() ? number : 0;
+	}
+
+	public String toString() { return string; }
+    }
+
+    Token element;
+    Expression left, right;
+
+    // Create token corresponding to a string
+    // tok is "+" | "*" | "-" | "/" | "%" | "^" | "(" | ")"| NUMBER
+    // NUMBER is either "0" or "[-]?[1-9][0-9]*"
+	static Token getToken(String tok)
+	{
+		Token result;
+		
+		switch(tok)
+		{
+			case "+":
+				result = new Token(TokenType.PLUS, 1, tok);
+				break;
+			case "-":
+				result = new Token(TokenType.MINUS, 1, tok);
+				break;
+			case "*":
+				result = new Token(TokenType.TIMES, 2, tok);
+				break;
+			case "/":
+				result = new Token(TokenType.DIV, 2, tok);
+				break;
+			case "%":
+				result = new Token(TokenType.MOD, 2, tok);
+				break;
+			case "^":
+				result = new Token(TokenType.POWER, 3, tok);
+				break;
+			case "(":
+				result = new Token(TokenType.OPEN, 4, tok);
+				break;
+			case ")":
+				result = new Token(TokenType.CLOSE, 4, tok);
+				break;
+			
+			default:
+				result = new Token(tok);
+				break;
+		}
+		return result;
+	}
+    
+	// Default constructor
+    private Expression() {
+	element = null;
+    }
+    
+    // When Expression node has left or right Expression node
+    private Expression(Token oper, Expression left, Expression right) {
+	this.element = oper;
+	this.left = left;
+	this.right = right;
+    }
+
+    // When a number Expression node is created
+    private Expression(Token num) {
+	this.element = num;
+	this.left = null;
+	this.right = null;
+    }
+
+    // Method to convert an infix to Expression Tree
+    public static Expression infixToExpression(List<Token> exp) 
+    {  
+    	// Stack to hold operators and another to hold the tree (operands)
+    	Stack <Expression> operands = new Stack<>();
+    	Stack <Expression> operators = new Stack<>();
+    	Expression tree;
+    	
+    	// Element start at index 0 of exp list
+		int index = 0;
+		int size = exp.size();
+		
+    	while(index < size)
+    	{ // Iterate through the exp list
+    		if(exp.get(index).token == TokenType.NUMBER)
+    		{
+    			// If the token is a number, it is a leaf
+    			Expression leaf = new Expression(exp.get(index), null, null);
+    			operands.push(leaf);
+    			
+    		}
+    		// If the exp is an open parenthesis 
+    		else if(exp.get(index).token == TokenType.OPEN)
+    		{
+    			// Create new Expression node and push the node into operators stack
+    			Expression operator = new Expression(exp.get(index), null, null);
+    			operators.push(operator);
+    		}
+    		
+    		// If the element is a closed parenthesis
+    		else if (exp.get(index).token == TokenType.CLOSE) 
+		      {
+		        while(!operators.isEmpty()) 
+		        {
+		        	// Compare with operator node at top of operators stack with the element from list
+		          Expression op = operators.pop();
+		          if(op.element.token != TokenType.OPEN) 
+		          {
+		        	// While the operator from stack is not open parenthesis, add with the tree stack
+		        	// Attach the operator node with the operand values
+		        	Expression operand1 = operands.pop();
+		        	Expression operand2 = operands.pop();
+		        	op.left = operand2;
+		        	op.right = operand1;
+		            operands.push(op);
+		          } 
+		          else 
+		          {
+		            break;
+		          }
+		        }
+		      }
+    		else // When the element is *, /, %, ^, +, -
+    		{
+    			if(operators.isEmpty()) 
+ 		        {
+    				// When there is no element inside operators stack, push the element into the stack and create a new Expression node
+    			  Expression op = new Expression(exp.get(index), null, null);
+ 		          operators.push(op);
+ 		        } 
+ 		        else // When there are elements inside the operators stack
+ 		        {
+ 		        	while(!operators.isEmpty()) 
+ 		          	{
+ 		        		// If the top element of stack is open, push the new element to the stack
+ 		            	Expression t = operators.pop();
+ 		            	if(t.element.token == TokenType.OPEN) 
+ 		            	{
+ 		              		operators.push(t);
+ 		              		break;
+ 		            	}	 
+ 		            	
+ 		            	else // check priorities if not open 
+ 		            	{
+ 		              		if(t.element.priority <  exp.get(index).priority) 
+ 		              		{
+ 		              			// If the element at top of stack has lesser priority than the element from list, push the top element back into the stack
+ 		                		operators.push(t);
+ 		                		break;
+ 		              		} 
+ 		              		else // when top has greater or equal priority
+ 		              		{
+ 		              			// Attach the number Expression nodes from operand with the operator at top of operators stack and push it into the operand stack (Expression tree)
+ 		                		Expression operand1 = operands.pop();
+ 		                		Expression operand2 = operands.pop();
+ 		                		t.left = operand2;
+ 		                		t.right = operand1;
+ 		                		operands.push(t);
+ 		              		}
+ 		            	}
+ 		          	}
+ 		        	// Create new node for the element from the list and push into the operators stack
+ 		        	Expression element = new Expression(exp.get(index), null, null); 
+ 		          	operators.push(element);
+ 		        }
+    		}
+    		// increment index, traverse
+    		index++;
+    	}
+    	
+    	// After traversing the list and there are still operators 
+	    while(!operators.isEmpty()) 
+	    {
+	    	Expression operator = operators.pop();
+	    	Expression operand1 = operands.pop();
+	    	Expression operand2 = operands.pop();
+	    	operator.left = operand2;
+	    	operator.right = operand1;
+	      operands.add(operator);
+	    }
+	    // Expression tree will be the first element of the operand stack
+	    tree = operands.get(0);
+    	return tree;
+    }
+
+
+    // Method to convert infix notation to postfix notation
+	public static List<Token> infixToPostfix(List<Token> exp)
+	{
+		// Need a stack to hold arithmetic operators and list to contain tokens of final postfix 
+		Stack <Token> s = new Stack<>();
+		List<Token> l = new LinkedList<>();
+		int index = 0;
+		int size = exp.size();
+		
+	   
+		 while(index < size) 
+		 {
+		     if(exp.get(index).token == TokenType.NUMBER) 
+			 {
+		    	 // if the token from original list is a number, add the number to the postfix list
+		        l.add(exp.get(index));  
+		      } 
+		      else if (exp.get(index).token == TokenType.OPEN) 
+		      {
+			    // if the token from original list is an open parenthesis, push the token to the stack
+		        s.push(exp.get(index));
+		      } 
+		      else if (exp.get(index).token == TokenType.CLOSE) 
+		      {
+		    	  // if the token is close
+		    	  while(!s.isEmpty()) 
+		    	  {
+		    		  // while the stack is not empty, pop every element until seeing an open operator 
+		    		  Token t = s.pop();
+		    		  if(t.token != TokenType.OPEN) 
+		    		  {
+		    			  // add the element to the list
+		    			  l.add(t);
+		    		  }	 
+		    		  else 
+		    		  {
+		    			  // stop when reaching an open operator
+		    			  break;
+		    		  }
+		    	  }
+		      }
+		
+		      else			      
+		      {
+		    	  // when the element from the infix list is +, -, *, /, %, ^
+		    	  if(s.isEmpty()) 
+		    	  {
+		    		  // if the operator stack is empty, push the element
+		    		  s.push(exp.get(index));
+		    	  } 
+		    	  else 
+		    	  {
+		    		  while(!s.isEmpty()) 
+		          	  {
+		    			  // When the stack is not empty
+		    			  Token t = s.pop();
+		    			  if(t.token == TokenType.OPEN) 
+		    			  {
+		    				  // If the top token is an open parenthesis, push the token back into the stack
+		              			s.push(t);
+		              			break;
+		    			  }	 
+		    			  else
+		    			  { 
+		    				  // Compare priorities
+		              			if(t.priority <  exp.get(index).priority) 
+		              			{
+		              				// If priority of token from the list is higher than top element in operator stack, push the element back into the stack
+		              				s.push(t);
+		              				break;
+		              			} 
+		              			else 
+		              			{ 
+		              				// lesser priority will cause the token at the top of the stack to be added to the list
+		              				l.add(t);
+		              			}
+		    			  }
+		          	  }
+		    		  // push the new element into the stack
+		          		s.push(exp.get(index));
+		    	  }
+		      	}
+		      	// increment the index
+		     index++;
+		    }
+		 
+		    	while(!s.isEmpty()) 
+		    	{
+		    		// when there are operators left over in the stack, pop and add them to the list
+		    		l.add(s.pop());
+		    	}
+		    	
+		    	// return the list of tokens for the postfix notation
+		    	return l;
+	}
+
+    // Method to evaluate the postfix expression
+    public static long evaluatePostfix(List<Token> exp) 
+    {  
+    	Stack <Token> sE = new Stack<>();
+    	long solution = 0;
+    	for(int i = 0; i < exp.size(); i++)
+    	{
+    		if(exp.get(i).token == TokenType.NUMBER)
+    		{
+    			// if the token from the list is a number, it will be pushed into the stack
+    			sE.push(exp.get(i));
+    		}
+    		
+    		else
+    		{
+    			// if the token is not a number, perform arithmetic operations on the tokens of the stack containing the numbers
+    			if(exp.get(i).token == TokenType.PLUS)
+    			{
+    				Token t1 = sE.pop();
+    				Token t2 = sE.pop();
+    				Token t3 = new Token(Long.toString(t2.number + t1.number));
+    				sE.push(t3);
+    			}
+    			
+    			else if(exp.get(i).token == TokenType.MINUS)
+    			{
+    				Token t1 = sE.pop();
+    				Token t2 = sE.pop();
+    				Token t3 = new Token(Long.toString(t2.number - t1.number));
+    				sE.push(t3);	    				
+    			}
+    			
+    			else if(exp.get(i).token == TokenType.TIMES)
+    			{
+    				Token t1 = sE.pop();
+    				Token t2 = sE.pop();
+    				Token t3 = new Token(Long.toString(t2.number * t1.number));
+    				sE.push(t3);	  
+    			}
+    			
+    			else if(exp.get(i).token == TokenType.DIV)
+    			{
+    				Token t1 = sE.pop();
+    				Token t2 = sE.pop();
+    				Token t3 = new Token(Long.toString(t2.number / t1.number));
+    				sE.push(t3);	  
+    			}
+    			else if(exp.get(i).token == TokenType.MOD)
+    			{
+    				Token t1 = sE.pop();
+    				Token t2 = sE.pop();
+    				Token t3 = new Token(Long.toString(t2.number % t1.number));
+    				sE.push(t3);	  
+    			}
+    			
+    			else if(exp.get(i).token == TokenType.POWER)
+    			{
+    				Token t1 = sE.pop();
+    				Token t2 = sE.pop();
+    				Token t3 = new Token(Long.toString(((long)Math.pow(t2.number , t1.number))));
+    				sE.push(t3);	  
+    			}
+    		}
+    	}
+    	// variable containing the solution
+    	solution = sE.get(0).number;
+    	
+    	return solution;
+    }
+
+    // This method will evaluate the expression tree
+    public static long evaluateExpression(Expression tree) 
+    {  
+    	if(tree.left == null && tree.right == null)
+    	{
+    		// if the left and right side of the tree are both null (no more elements) return the number
+    		return tree.element.number;
+    		
+    	}
+    		// l will hold the value of the left subtree, r holds value of right subtree
+    		long l = evaluateExpression(tree.left);
+    		long r = evaluateExpression(tree.right);
+    		
+    		// Arithmetic expressions to perform on the numbers
+    		if(tree.element.token == TokenType.PLUS)
+    			return l + r;
+    		else if(tree.element.token == TokenType.MINUS)
+    			return l - r;
+    		else if(tree.element.token == TokenType.DIV)
+    			return l/r;
+    		if(tree.element.token == TokenType.TIMES)
+    			return l * r;
+    		if(tree.element.token == TokenType.MOD)
+    			return l % r;
+    	
+    		// if the operator is an exponent
+    	return (long) Math.pow(l, r);
+    }
+
+    // sample main program for testing
+    public static void main(String[] args) throws FileNotFoundException {
+	Scanner in;
+	
+	if (args.length > 0) {
+	    File inputFile = new File(args[0]);
+	    in = new Scanner(inputFile);
+	} else {
+	    in = new Scanner(System.in);
+	}
+
+	int count = 0;
+	while(in.hasNext()) {
+	    String s = in.nextLine();
+	    System.out.println(s);
+	    List<Token> infix = new LinkedList<>();
+	    Scanner sscan = new Scanner(s);
+	    int len = 0;
+	    while(sscan.hasNext()) {
+		infix.add(getToken(sscan.next()));
+		len++;
+	    }
+	    if(len > 0) {
+		count++;
+		System.out.println("Expression number: " + count);
+		System.out.println("Infix expression: " + infix);
+		Expression exp = infixToExpression(infix);
+		List<Token> post = infixToPostfix(infix);
+		System.out.println("Postfix expression: " + post);
+		long pval = evaluatePostfix(post);
+		long eval = evaluateExpression(exp);
+		System.out.println("Postfix eval: " + pval + " Exp eval: " + eval + "\n");
+	    }
+	}
+    }
+}
